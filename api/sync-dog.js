@@ -38,11 +38,13 @@ export default async function handler(req, res) {
 
     const shopifyBase = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}`;
 
-    // CRITICAL: Use Entry ID as permanent identifier - never changes even if dog name changes
-    const handle = `dog-${dog.entryId}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    // CRITICAL: Create permanent handle from Cognito ID
+    // Format: dog-24-108 (never changes, even if dog name changes)
+    const handle = `dog-${dog.entryId}`;
     console.log("=== PERMANENT HANDLE ===");
-    console.log("Entry ID:", dog.entryId);
-    console.log("Handle:", handle);
+    console.log("Cognito ID:", dog.entryId);
+    console.log("Shopify Handle:", handle);
+    console.log("This handle will NEVER change for this dog");
 
     // Search for existing product by handle ONLY (not by name/title)
     const existingProduct = await findProductByHandle(
@@ -138,21 +140,19 @@ export default async function handler(req, res) {
 }
 
 function mapCognitoToDog(payload) {
-  // CRITICAL: Extract Entry ID - this is the permanent identifier
-  // Cognito sends this as "Id" field in format "FormId-EntryNumber" (e.g., "24-108")
-  let entryId = payload.Id || payload.EntryId || payload.id || payload.Entry?.Number;
+  // CRITICAL: Extract permanent ID from payload.Id
+  // Format: "FormId-EntryNumber" (e.g., "24-108")
+  // This is the ONLY permanent identifier - never changes
+  const entryId = payload.Id;
 
-  // If Entry object exists, prefer using Entry.Number for consistency
-  if (payload.Entry && payload.Entry.Number) {
-    entryId = `${payload.Form?.Id || 'form'}-${payload.Entry.Number}`;
+  console.log("=== PERMANENT ID EXTRACTION ===");
+  console.log("Cognito ID:", entryId);
+  console.log("Type:", typeof entryId);
+
+  if (!entryId) {
+    console.error("CRITICAL: No Id field found in payload!");
+    console.error("Available fields:", Object.keys(payload));
   }
-
-  console.log("Entry ID extraction:", {
-    rawId: payload.Id,
-    entryNumber: payload.Entry?.Number,
-    formId: payload.Form?.Id,
-    finalEntryId: entryId
-  });
 
   // Match actual Cognito field names
   const name = payload["DogName"] || payload["Name"] || payload["Dog Name"];
@@ -165,6 +165,7 @@ function mapCognitoToDog(payload) {
   const availability = normalizeAvailability(payload["Code"] || payload["Availability"]);
 
   // Extract image URLs from Cognito photo objects
+  // Use Cognito file download endpoint: https://www.cognitoforms.com/file/{fileId}
   const imageUrls = [];
 
   // Get all photo fields
@@ -176,16 +177,19 @@ function mapCognitoToDog(payload) {
     payload["AdditionalPhoto4"]
   ];
 
-  // Extract File URL from each photo object
+  // Convert file IDs to Cognito download URLs
   photoFields.forEach(photoArray => {
     if (Array.isArray(photoArray) && photoArray.length > 0) {
       photoArray.forEach(photo => {
-        if (photo && photo.File) {
-          imageUrls.push(photo.File);
+        if (photo && photo.Id) {
+          // Use Cognito's file download endpoint
+          imageUrls.push(`https://www.cognitoforms.com/file/${photo.Id}`);
         }
       });
     }
   });
+
+  console.log("Extracted image URLs:", imageUrls);
 
   return {
     entryId,
