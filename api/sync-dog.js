@@ -165,7 +165,6 @@ function mapCognitoToDog(payload) {
   const availability = normalizeAvailability(payload["Code"] || payload["Availability"]);
 
   // Extract image URLs from Cognito photo objects
-  // Use Cognito file download endpoint: https://www.cognitoforms.com/file/{fileId}
   const imageUrls = [];
 
   // Get all photo fields
@@ -177,12 +176,15 @@ function mapCognitoToDog(payload) {
     payload["AdditionalPhoto4"]
   ];
 
-  // Convert file IDs to Cognito download URLs
+  // Extract image URLs - try both File URL (with token) and file endpoint
   photoFields.forEach(photoArray => {
     if (Array.isArray(photoArray) && photoArray.length > 0) {
       photoArray.forEach(photo => {
-        if (photo && photo.Id) {
-          // Use Cognito's file download endpoint
+        if (photo && photo.File) {
+          // Use the File URL provided by Cognito (includes auth token)
+          imageUrls.push(photo.File);
+        } else if (photo && photo.Id) {
+          // Fallback to file download endpoint
           imageUrls.push(`https://www.cognitoforms.com/file/${photo.Id}`);
         }
       });
