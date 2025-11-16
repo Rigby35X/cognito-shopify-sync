@@ -1,0 +1,18 @@
+{
+  "name": "cognito-shopify-sync",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Serverless function to sync Cognito Forms dog entries to Shopify products",
+  "main": "api/sync-dog.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  }
+}

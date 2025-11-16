@@ -1,0 +1,15 @@
+{
+  "EntryId": "12345",
+  "Name": "Buddy",
+  "My Story": "Buddy is a friendly and energetic puppy who loves to play fetch and cuddle. He's great with kids and other dogs.",
+  "Litter": "Summer 2024",
+  "Birthday": "2024-06-15",
+  "Breed": "Golden Retriever",
+  "Gender": "Male",
+  "Size when Grown": "Large",
+  "Availability": "Available: Now",
+  "Pictures": [
+    "https://example.com/dog1.jpg",
+    "https://example.com/dog2.jpg"
+  ]
+}
