@@ -117,15 +117,38 @@ export default async function handler(req, res) {
 function mapCognitoToDog(payload) {
   const entryId = payload.EntryId || payload.id || payload.Id;
 
-  const name = payload["Name"] || payload["Dog Name"];
-  const story = payload["My Story"];
-  const litter = payload["Litter"];
-  const birthday = payload["Birthday"];
+  // Match actual Cognito field names
+  const name = payload["DogName"] || payload["Name"] || payload["Dog Name"];
+  const story = payload["MyStory"] || payload["My Story"];
+  const litter = payload["LitterName"] || payload["Litter"];
+  const birthday = payload["PupBirthday"] || payload["Birthday"];
   const breed = payload["Breed"];
   const gender = payload["Gender"];
-  const sizeWhenGrown = payload["Size when Grown"];
-  const availability = normalizeAvailability(payload["Availability"]);
-  const imageUrls = Array.isArray(payload["Pictures"]) ? payload["Pictures"] : [];
+  const sizeWhenGrown = payload["EstimatedSizeWhenGrown"] || payload["Size when Grown"];
+  const availability = normalizeAvailability(payload["Code"] || payload["Availability"]);
+
+  // Extract image URLs from Cognito photo objects
+  const imageUrls = [];
+
+  // Get all photo fields
+  const photoFields = [
+    payload["MainPhoto"],
+    payload["AdditionalPhoto1"],
+    payload["AdditionalPhoto2"],
+    payload["AdditionalPhoto3"],
+    payload["AdditionalPhoto4"]
+  ];
+
+  // Extract File URL from each photo object
+  photoFields.forEach(photoArray => {
+    if (Array.isArray(photoArray) && photoArray.length > 0) {
+      photoArray.forEach(photo => {
+        if (photo && photo.File) {
+          imageUrls.push(photo.File);
+        }
+      });
+    }
+  });
 
   return {
     entryId,
