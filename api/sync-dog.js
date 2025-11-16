@@ -37,9 +37,14 @@ export default async function handler(req, res) {
     }
 
     const shopifyBase = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}`;
-    const handle = `dog-${dog.entryId}`.toLowerCase();
-    console.log("Looking for product with handle:", handle);
 
+    // CRITICAL: Use Entry ID as permanent identifier - never changes even if dog name changes
+    const handle = `dog-${dog.entryId}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    console.log("=== PERMANENT HANDLE ===");
+    console.log("Entry ID:", dog.entryId);
+    console.log("Handle:", handle);
+
+    // Search for existing product by handle ONLY (not by name/title)
     const existingProduct = await findProductByHandle(
       shopifyBase,
       SHOPIFY_ADMIN_API_ACCESS_TOKEN,
@@ -51,14 +56,25 @@ export default async function handler(req, res) {
     let result;
 
     if (existingProduct) {
-      console.log("Updating existing product:", existingProduct.id);
+      console.log("=== UPDATING EXISTING PRODUCT ===");
+      console.log("Product ID:", existingProduct.id);
+      console.log("Current title:", existingProduct.title);
+      console.log("New title:", productPayload.title);
+
+      // Update existing product - preserve ID and handle
       const updateResp = await fetch(`${shopifyBase}/products/${existingProduct.id}.json`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "X-Shopify-Access-Token": SHOPIFY_ADMIN_API_ACCESS_TOKEN
         },
-        body: JSON.stringify({ product: { ...productPayload, id: existingProduct.id } })
+        body: JSON.stringify({
+          product: {
+            id: existingProduct.id,
+            handle: handle, // Ensure handle stays the same
+            ...productPayload
+          }
+        })
       });
 
       if (!updateResp.ok) {
@@ -67,14 +83,19 @@ export default async function handler(req, res) {
         return res.status(502).json({
           error: "Failed to update product",
           details: text,
-          productId: existingProduct.id
+          productId: existingProduct.id,
+          handle: handle
         });
       }
 
       result = await updateResp.json();
-      console.log("Product updated successfully:", existingProduct.id);
+      console.log("✅ Product updated successfully:", existingProduct.id);
     } else {
-      console.log("Creating new product with handle:", handle);
+      console.log("=== CREATING NEW PRODUCT ===");
+      console.log("Handle:", handle);
+      console.log("Title:", productPayload.title);
+
+      // Create new product with permanent handle
       const createResp = await fetch(`${shopifyBase}/products.json`, {
         method: "POST",
         headers: {
@@ -95,7 +116,9 @@ export default async function handler(req, res) {
       }
 
       result = await createResp.json();
-      console.log("Product created successfully:", result.product?.id);
+      console.log("✅ Product created successfully");
+      console.log("Product ID:", result.product?.id);
+      console.log("Handle:", result.product?.handle);
     }
 
     return res.status(200).json({
@@ -115,7 +138,21 @@ export default async function handler(req, res) {
 }
 
 function mapCognitoToDog(payload) {
-  const entryId = payload.EntryId || payload.id || payload.Id;
+  // CRITICAL: Extract Entry ID - this is the permanent identifier
+  // Cognito sends this as "Id" field in format "FormId-EntryNumber" (e.g., "24-108")
+  let entryId = payload.Id || payload.EntryId || payload.id || payload.Entry?.Number;
+
+  // If Entry object exists, prefer using Entry.Number for consistency
+  if (payload.Entry && payload.Entry.Number) {
+    entryId = `${payload.Form?.Id || 'form'}-${payload.Entry.Number}`;
+  }
+
+  console.log("Entry ID extraction:", {
+    rawId: payload.Id,
+    entryNumber: payload.Entry?.Number,
+    formId: payload.Form?.Id,
+    finalEntryId: entryId
+  });
 
   // Match actual Cognito field names
   const name = payload["DogName"] || payload["Name"] || payload["Dog Name"];
