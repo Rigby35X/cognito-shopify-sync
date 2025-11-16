@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/sync-dog",
+      "destination": "/api/sync-dog.js"
+    }
+  ]
+}
