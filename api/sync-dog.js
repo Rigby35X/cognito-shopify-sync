@@ -204,9 +204,14 @@ function mapCognitoToDog(payload) {
 function normalizeAvailability(value) {
   if (!value) return "Available: Now";
   const v = String(value).toLowerCase();
+
+  // Only normalize if it matches known patterns
   if (v.includes("nursery") || v.includes("soon")) return "Available Soon: Nursery";
   if (v.includes("adopted")) return "Adopted";
-  return "Available: Now";
+  if (v.includes("available") && v.includes("now")) return "Available: Now";
+
+  // Otherwise, use the exact value from Cognito
+  return String(value);
 }
 
 async function findProductByHandle(baseUrl, accessToken, handle) {
@@ -240,12 +245,46 @@ async function findProductByHandle(baseUrl, accessToken, handle) {
 
 function buildShopifyProductPayload(dog, handle) {
   const tags = buildTags(dog);
-  const body_html = `
-    <h2>My Story</h2>
-    <p>${dog.story || "No story available yet."}</p>
-    ${dog.birthday ? `<p><strong>Birthday:</strong> ${dog.birthday}</p>` : ""}
-    ${dog.sizeWhenGrown ? `<p><strong>Size when Grown:</strong> ${dog.sizeWhenGrown}</p>` : ""}
-  `.trim();
+
+  // Build comprehensive description with all fields
+  const sections = [];
+
+  // My Story
+  if (dog.story) {
+    sections.push(`<h2>MY STORY:</h2>\n<p>${dog.story}</p>`);
+  }
+
+  // Litter
+  if (dog.litter) {
+    sections.push(`<h2>LITTER:</h2>\n<p>${dog.litter}</p>`);
+  }
+
+  // Birthday
+  if (dog.birthday) {
+    sections.push(`<h2>BIRTHDAY:</h2>\n<p>${dog.birthday}</p>`);
+  }
+
+  // Breed
+  if (dog.breed) {
+    sections.push(`<h2>BREED:</h2>\n<p>${dog.breed}</p>`);
+  }
+
+  // Gender
+  if (dog.gender) {
+    sections.push(`<h2>GENDER:</h2>\n<p>${dog.gender}</p>`);
+  }
+
+  // Size When Grown
+  if (dog.sizeWhenGrown) {
+    sections.push(`<h2>SIZE WHEN GROWN:</h2>\n<p>${dog.sizeWhenGrown}</p>`);
+  }
+
+  // Availability
+  if (dog.availability) {
+    sections.push(`<h2>AVAILABILITY:</h2>\n<p>${dog.availability}</p>`);
+  }
+
+  const body_html = sections.join('\n\n') || '<p>No information available.</p>';
 
   const images = dog.imageUrls?.length > 0
     ? dog.imageUrls.map((url) => ({ src: url }))
