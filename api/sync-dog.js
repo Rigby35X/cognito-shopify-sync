@@ -246,45 +246,43 @@ async function findProductByHandle(baseUrl, accessToken, handle) {
 function buildShopifyProductPayload(dog, handle) {
   const tags = buildTags(dog);
 
-  // Build comprehensive description with all fields
-  const sections = [];
+  // Build description: Story first, then structured fields with bold labels
+  let body_html = '';
 
-  // My Story
+  // Story comes first as a regular paragraph (no heading)
   if (dog.story) {
-    sections.push(`<h2>MY STORY:</h2>\n<p>${dog.story}</p>`);
+    body_html += `<p>${dog.story}</p>\n\n`;
   }
 
-  // Litter
+  // Add structured fields with bold labels and line breaks
   if (dog.litter) {
-    sections.push(`<h2>LITTER:</h2>\n<p>${dog.litter}</p>`);
+    body_html += `<b>LITTER:</b><br>\n${dog.litter}<br><br>\n\n`;
   }
 
-  // Birthday
   if (dog.birthday) {
-    sections.push(`<h2>BIRTHDAY:</h2>\n<p>${dog.birthday}</p>`);
+    body_html += `<b>BIRTHDAY:</b><br>\n${dog.birthday}<br><br>\n\n`;
   }
 
-  // Breed
   if (dog.breed) {
-    sections.push(`<h2>BREED:</h2>\n<p>${dog.breed}</p>`);
+    body_html += `<b>BREED:</b><br>\n${dog.breed}<br><br>\n\n`;
   }
 
-  // Gender
   if (dog.gender) {
-    sections.push(`<h2>GENDER:</h2>\n<p>${dog.gender}</p>`);
+    body_html += `<b>GENDER:</b><br>\n${dog.gender}<br><br>\n\n`;
   }
 
-  // Size When Grown
   if (dog.sizeWhenGrown) {
-    sections.push(`<h2>SIZE WHEN GROWN:</h2>\n<p>${dog.sizeWhenGrown}</p>`);
+    body_html += `<b>SIZE WHEN GROWN:</b><br>\n${dog.sizeWhenGrown}<br><br>\n\n`;
   }
 
-  // Availability
   if (dog.availability) {
-    sections.push(`<h2>AVAILABILITY:</h2>\n<p>${dog.availability}</p>`);
+    body_html += `<b>AVAILABILITY:</b><br>\n${dog.availability}<br><br>\n\n`;
   }
 
-  const body_html = sections.join('\n\n') || '<p>No information available.</p>';
+  // Fallback if no content
+  if (!body_html.trim()) {
+    body_html = '<p>No information available.</p>';
+  }
 
   const images = dog.imageUrls?.length > 0
     ? dog.imageUrls.map((url) => ({ src: url }))
@@ -292,7 +290,7 @@ function buildShopifyProductPayload(dog, handle) {
 
   return {
     title: dog.name || `Dog ${dog.entryId}`,
-    body_html,
+    body_html: body_html.trim(),
     handle,
     tags: tags.join(", "),
     images,
