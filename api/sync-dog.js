@@ -38,15 +38,11 @@ export default async function handler(req, res) {
 
     const shopifyBase = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}`;
 
-    // CRITICAL: Create permanent handle from Cognito ID
-    // Format: dog-24-108 (never changes, even if dog name changes)
     const handle = `dog-${dog.entryId}`;
     console.log("=== PERMANENT HANDLE ===");
     console.log("Cognito ID:", dog.entryId);
     console.log("Shopify Handle:", handle);
-    console.log("This handle will NEVER change for this dog");
 
-    // Search for existing product by handle ONLY (not by name/title)
     const existingProduct = await findProductByHandle(
       shopifyBase,
       SHOPIFY_ADMIN_API_ACCESS_TOKEN,
@@ -60,10 +56,7 @@ export default async function handler(req, res) {
     if (existingProduct) {
       console.log("=== UPDATING EXISTING PRODUCT ===");
       console.log("Product ID:", existingProduct.id);
-      console.log("Current title:", existingProduct.title);
-      console.log("New title:", productPayload.title);
 
-      // Update existing product - preserve ID and handle
       const updateResp = await fetch(`${shopifyBase}/products/${existingProduct.id}.json`, {
         method: "PUT",
         headers: {
@@ -73,7 +66,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           product: {
             id: existingProduct.id,
-            handle: handle, // Ensure handle stays the same
+            handle: handle,
             ...productPayload
           }
         })
@@ -94,10 +87,7 @@ export default async function handler(req, res) {
       console.log("✅ Product updated successfully:", existingProduct.id);
     } else {
       console.log("=== CREATING NEW PRODUCT ===");
-      console.log("Handle:", handle);
-      console.log("Title:", productPayload.title);
 
-      // Create new product with permanent handle
       const createResp = await fetch(`${shopifyBase}/products.json`, {
         method: "POST",
         headers: {
@@ -119,8 +109,6 @@ export default async function handler(req, res) {
 
       result = await createResp.json();
       console.log("✅ Product created successfully");
-      console.log("Product ID:", result.product?.id);
-      console.log("Handle:", result.product?.handle);
     }
 
     return res.status(200).json({
@@ -139,22 +127,79 @@ export default async function handler(req, res) {
   }
 }
 
+/**
+ * Converts plain text "My Story" content into HTML.
+ * Rules:
+ *   - Lines ending with ":" are wrapped in <strong>
+ *   - Lines starting with "•" or "-" become <ul><li> list items
+ *   - Blank lines become paragraph breaks
+ *   - All other lines become <p> tags
+ */
+function convertStoryToHtml(text) {
+  if (!text) return '';
+
+  const lines = text.split('\n');
+  let html = '';
+  let inList = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Blank line — close any open list, add paragraph spacing
+    if (line === '') {
+      if (inList) {
+        html += '</ul>\n';
+        inList = false;
+      }
+      continue;
+    }
+
+    // Bullet point line
+    if (line.startsWith('•') || line.startsWith('-')) {
+      if (!inList) {
+        html += '<ul>\n';
+        inList = true;
+      }
+      const bulletText = line.replace(/^[•\-]\s*/, '');
+      html += `  <li>${bulletText}</li>\n`;
+      continue;
+    }
+
+    // Close list if we hit a non-bullet line
+    if (inList) {
+      html += '</ul>\n';
+      inList = false;
+    }
+
+    // Bold heading — line ends with ":"
+    if (line.endsWith(':')) {
+      html += `<p><strong>${line}</strong></p>\n`;
+      continue;
+    }
+
+    // Regular paragraph
+    html += `<p>${line}</p>\n`;
+  }
+
+  // Close any unclosed list
+  if (inList) {
+    html += '</ul>\n';
+  }
+
+  return html.trim();
+}
+
 function mapCognitoToDog(payload) {
-  // CRITICAL: Extract permanent ID from payload.Id
-  // Format: "FormId-EntryNumber" (e.g., "24-108")
-  // This is the ONLY permanent identifier - never changes
   const entryId = payload.Id;
 
   console.log("=== PERMANENT ID EXTRACTION ===");
   console.log("Cognito ID:", entryId);
-  console.log("Type:", typeof entryId);
 
   if (!entryId) {
     console.error("CRITICAL: No Id field found in payload!");
     console.error("Available fields:", Object.keys(payload));
   }
 
-  // Match actual Cognito field names
   const name = payload["DogName"] || payload["Name"] || payload["Dog Name"];
   const story = payload["MyStory"] || payload["My Story"];
   const litter = payload["LitterName"] || payload["Litter"];
@@ -164,10 +209,8 @@ function mapCognitoToDog(payload) {
   const sizeWhenGrown = payload["EstimatedSizeWhenGrown"] || payload["Size when Grown"];
   const availability = normalizeAvailability(payload["Code"] || payload["Availability"]);
 
-  // Extract image URLs from Cognito photo objects
   const imageUrls = [];
 
-  // Get all photo fields
   const photoFields = [
     payload["MainPhoto"],
     payload["AdditionalPhoto1"],
@@ -176,15 +219,12 @@ function mapCognitoToDog(payload) {
     payload["AdditionalPhoto4"]
   ];
 
-  // Extract image URLs - try both File URL (with token) and file endpoint
   photoFields.forEach(photoArray => {
     if (Array.isArray(photoArray) && photoArray.length > 0) {
       photoArray.forEach(photo => {
         if (photo && photo.File) {
-          // Use the File URL provided by Cognito (includes auth token)
           imageUrls.push(photo.File);
         } else if (photo && photo.Id) {
-          // Fallback to file download endpoint
           imageUrls.push(`https://www.cognitoforms.com/file/${photo.Id}`);
         }
       });
@@ -210,13 +250,9 @@ function mapCognitoToDog(payload) {
 function normalizeAvailability(value) {
   if (!value) return "Available: Now";
   const v = String(value).toLowerCase();
-
-  // Only normalize if it matches known patterns
   if (v.includes("nursery") || v.includes("soon")) return "Available Soon: Nursery";
   if (v.includes("adopted")) return "Adopted";
   if (v.includes("available") && v.includes("now")) return "Available: Now";
-
-  // Otherwise, use the exact value from Cognito
   return String(value);
 }
 
@@ -252,40 +288,33 @@ async function findProductByHandle(baseUrl, accessToken, handle) {
 function buildShopifyProductPayload(dog, handle) {
   const tags = buildTags(dog);
 
-  // Build description: Story first, then structured fields with bold labels
   let body_html = '';
 
-  // Story comes first as a regular paragraph (no heading)
+  // Convert My Story plain text to formatted HTML
   if (dog.story) {
-    body_html += `<p>${dog.story}</p>\n\n`;
+    body_html += convertStoryToHtml(dog.story) + '\n\n';
   }
 
-  // Add structured fields with bold labels and line breaks
+  // Structured fields with bold labels
   if (dog.litter) {
-    body_html += `<b>LITTER:</b><br>\n${dog.litter}<br><br>\n\n`;
+    body_html += `<p><b>LITTER:</b><br>${dog.litter}</p>\n`;
   }
-
   if (dog.birthday) {
-    body_html += `<b>BIRTHDAY:</b><br>\n${dog.birthday}<br><br>\n\n`;
+    body_html += `<p><b>BIRTHDAY:</b><br>${dog.birthday}</p>\n`;
   }
-
   if (dog.breed) {
-    body_html += `<b>BREED:</b><br>\n${dog.breed}<br><br>\n\n`;
+    body_html += `<p><b>BREED:</b><br>${dog.breed}</p>\n`;
   }
-
   if (dog.gender) {
-    body_html += `<b>GENDER:</b><br>\n${dog.gender}<br><br>\n\n`;
+    body_html += `<p><b>GENDER:</b><br>${dog.gender}</p>\n`;
   }
-
   if (dog.sizeWhenGrown) {
-    body_html += `<b>SIZE WHEN GROWN:</b><br>\n${dog.sizeWhenGrown}<br><br>\n\n`;
+    body_html += `<p><b>SIZE WHEN GROWN:</b><br>${dog.sizeWhenGrown}</p>\n`;
   }
-
   if (dog.availability) {
-    body_html += `<b>AVAILABILITY:</b><br>\n${dog.availability}<br><br>\n\n`;
+    body_html += `<p><b>AVAILABILITY:</b><br>${dog.availability}</p>\n`;
   }
 
-  // Fallback if no content
   if (!body_html.trim()) {
     body_html = '<p>No information available.</p>';
   }
