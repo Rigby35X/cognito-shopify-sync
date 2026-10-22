@@ -190,7 +190,10 @@ function convertStoryToHtml(text) {
 }
 
 function mapCognitoToDog(payload) {
-  const entryId = payload.Id ?? payload.Entry?.Number;\n  const profile = payload.DogProfile || {};\n  const intake = payload.Intake || {};\n  const additional = payload.AdditionalDogPhotos || {};
+  const entryId = payload.Id ?? payload.Entry?.Number;
+  const profile = payload.DogProfile || {};
+  const intake = payload.Intake || {};
+  const additional = payload.AdditionalDogPhotos || {};
 
   console.log("=== PERMANENT ID EXTRACTION ===");
   console.log("Cognito ID:", entryId);
@@ -220,7 +223,8 @@ function mapCognitoToDog(payload) {
   ];
 
   photoFields.forEach(photoArray => {
-    if (photoArray && !Array.isArray(photoArray)) photoArray = [photoArray];\n    if (Array.isArray(photoArray) && photoArray.length > 0) {
+    if (photoArray && !Array.isArray(photoArray)) photoArray = [photoArray];
+    if (Array.isArray(photoArray) && photoArray.length > 0) {
       photoArray.forEach(photo => {
         if (photo && photo.File) {
           imageUrls.push(photo.File);
