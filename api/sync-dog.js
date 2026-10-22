@@ -190,7 +190,7 @@ function convertStoryToHtml(text) {
 }
 
 function mapCognitoToDog(payload) {
-  const entryId = payload.Id;
+  const entryId = payload.Id ?? payload.Entry?.Number;\n  const profile = payload.DogProfile || {};\n  const intake = payload.Intake || {};\n  const additional = payload.AdditionalDogPhotos || {};
 
   console.log("=== PERMANENT ID EXTRACTION ===");
   console.log("Cognito ID:", entryId);
@@ -200,27 +200,27 @@ function mapCognitoToDog(payload) {
     console.error("Available fields:", Object.keys(payload));
   }
 
-  const name = payload["DogName"] || payload["Name"] || payload["Dog Name"];
-  const story = payload["MyStory"] || payload["My Story"];
-  const litter = payload["LitterName"] || payload["Litter"];
-  const birthday = payload["PupBirthday"] || payload["Birthday"];
-  const breed = payload["Breed"];
-  const gender = payload["Gender"];
-  const sizeWhenGrown = payload["EstimatedSizeWhenGrown"] || payload["Size when Grown"];
-  const availability = normalizeAvailability(payload["Code"] || payload["Availability"]);
+  const name = profile.DogName || payload["DogName"] || payload["Name"] || payload["Dog Name"];
+  const story = intake.MyStory || payload["MyStory"] || payload["My Story"];
+  const litter = profile.LitterName || payload["LitterName"] || payload["Litter"];
+  const birthday = profile.Age || payload["PupBirthday"] || payload["Birthday"];
+  const breed = profile.PrimaryBreed || payload["Breed"];
+  const gender = profile.Sex || payload["Gender"];
+  const sizeWhenGrown = profile.EstimatedAdultSize || payload["EstimatedSizeWhenGrown"] || payload["Size when Grown"];
+  const availability = normalizeAvailability(payload.DogStatus || payload["Code"] || payload["Availability"]);
 
   const imageUrls = [];
 
   const photoFields = [
-    payload["MainPhoto"],
-    payload["AdditionalPhoto1"],
-    payload["AdditionalPhoto2"],
-    payload["AdditionalPhoto3"],
-    payload["AdditionalPhoto4"]
+    profile.Photo || payload["MainPhoto"],
+    additional.Photo1 || intake.Photo1 || payload["AdditionalPhoto1"],
+    additional.Photo2 || intake.Photo22 || payload["AdditionalPhoto2"],
+    additional.Photo3 || intake.Photo3 || payload["AdditionalPhoto3"],
+    additional.Photo4 || intake.Photo4 || payload["AdditionalPhoto4"]
   ];
 
   photoFields.forEach(photoArray => {
-    if (Array.isArray(photoArray) && photoArray.length > 0) {
+    if (photoArray && !Array.isArray(photoArray)) photoArray = [photoArray];\n    if (Array.isArray(photoArray) && photoArray.length > 0) {
       photoArray.forEach(photo => {
         if (photo && photo.File) {
           imageUrls.push(photo.File);
